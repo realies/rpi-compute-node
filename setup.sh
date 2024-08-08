@@ -22,84 +22,88 @@ update_system() {
     apt update && apt upgrade -y
 }
 
-# Function to configure Raspberry Pi
-configure_rpi() {
-    log "Configuring Raspberry Pi..."
-    if ! grep -q "# RPI-COMPUTE-NODE CONFIG" /boot/firmware/config.txt; then
-        cp /boot/firmware/config.txt /boot/firmware/config.txt.bak
-        cat << EOF > /boot/firmware/config.txt
-# RPI-COMPUTE-NODE CONFIG
-# Disable onboard audio
-dtparam=audio=off
+# Function to backup and reconfigure the config file
+update_config() {
+    local config_file="/boot/firmware/config.txt"
+    local backup_file="${config_file}.bak"
+    local custom_config_marker="# RPI-COMPUTE-NODE CONFIG"
 
-# Disable automatic detection of camera and display
-camera_auto_detect=0
-display_auto_detect=0
+    # Array of settings
+    local settings=(
+        "dtparam=audio=off"
+        "camera_auto_detect=0"
+        "display_auto_detect=0"
+        "auto_initramfs=1"
+        "disable_fw_kms_setup=1"
+        "arm_64bit=1"
+        "disable_overscan=1"
+        "arm_boost=1"
+        "dtoverlay=disable-bt"
+        "dtoverlay=disable-wifi"
+        "gpu_mem=16"
+        "arm_freq=2200"
+        "over_voltage=8"
+        "max_framebuffers=0"
+        "disable_camera_led=1"
+        "dtparam=i2c_arm=off"
+        "dtparam=spi=off"
+        "enable_uart=0"
+        "dtparam=sd_poll_once"
+        "gpu_freq_min=100"
+        "h264_freq_min=100"
+        "isp_freq_min=100"
+        "v3d_freq_min=100"
+        "hevc_freq_min=100"
+        "dtparam=pwr_led_trigger=default-on"
+        "dtparam=pwr_led_activelow=off"
+    )
 
-# Enable automatic generation of initramfs
-auto_initramfs=1
-
-# Disable firmware KMS setup
-disable_fw_kms_setup=1
-
-# Enable 64-bit mode
-arm_64bit=1
-
-# Disable overscan (black border around the screen)
-disable_overscan=1
-
-# Enable CPU boost mode
-arm_boost=1
-
-[all]
-# Disable Bluetooth
-dtoverlay=disable-bt
-
-# Disable Wi-Fi
-dtoverlay=disable-wifi
-
-# Set GPU memory to minimum (16MB)
-gpu_mem=16
-
-# Overclock CPU to 2.2GHz
-arm_freq=2200
-
-# Increase CPU/GPU core voltage
-over_voltage=8
-
-# Disable framebuffer allocation
-max_framebuffers=0
-
-# Disable camera LED
-disable_camera_led=1
-
-# Disable I2C interface
-dtparam=i2c_arm=off
-
-# Disable SPI interface
-dtparam=spi=off
-
-# Disable UART
-enable_uart=0
-
-# Enable SD card polling once at boot
-dtparam=sd_poll_once
-
-# Set minimum frequencies for various components
-gpu_freq_min=100
-h264_freq_min=100
-isp_freq_min=100
-v3d_freq_min=100
-hevc_freq_min=100
-
-# Configure power LED
-dtparam=pwr_led_trigger=default-on
-dtparam=pwr_led_activelow=off
-EOF
-        log "Raspberry Pi configuration updated"
-    else
-        log "Raspberry Pi configuration already updated, skipping"
+    # If our custom config is already present, restore from backup
+    if grep -q "$custom_config_marker" "$config_file"; then
+        if [ -f "$backup_file" ]; then
+            log "Restoring original configuration from backup"
+            cp "$backup_file" "$config_file"
+        else
+            log "Error: Backup file not found. Cannot restore original configuration."
+            return 1
+        fi
     fi
+
+    # Backup original config if not already done
+    if [ ! -f "$backup_file" ]; then
+        cp "$config_file" "$backup_file"
+        log "Backup of original configuration created"
+    fi
+
+    log "Updating Raspberry Pi configuration..."
+
+    # Remove existing settings we want to manage
+    local temp_file=$(mktemp)
+    while IFS= read -r line; do
+        local skip=false
+        for setting in "${settings[@]}"; do
+            if [[ "$line" == "${setting%%=*}"* ]]; then
+                skip=true
+                break
+            fi
+        done
+        if ! $skip; then
+            echo "$line" >> "$temp_file"
+        fi
+    done < "$config_file"
+
+    # Add custom settings configuration at the end
+    echo "" >> "$temp_file"
+    echo "[all]" >> "$temp_file"
+    echo "$custom_config_marker" >> "$temp_file"
+    for setting in "${settings[@]}"; do
+        echo "$setting" >> "$temp_file"
+    done
+
+    # Replace original file
+    mv "$temp_file" "$config_file"
+
+    log "Raspberry Pi configuration updated"
 }
 
 # Function to disable swap
@@ -230,7 +234,8 @@ install_docker() {
         curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
         chmod a+r /etc/apt/keyrings/docker.asc
 
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+          https://download.docker.com/linux/$(. /etc/os-release && echo "$ID") \
           $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
           tee /etc/apt/sources.list.d/docker.list > /dev/null
 
@@ -258,7 +263,7 @@ add_user_to_docker_group() {
 main() {
     check_root
     update_system
-    configure_rpi
+    update_config
     disable_swap
     disable_services_and_remove_packages
     blacklist_modules

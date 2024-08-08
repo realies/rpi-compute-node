@@ -1,10 +1,10 @@
 # rpi-compute-node
 
-A streamlined setup script for transforming a fresh Raspberry Pi OS Lite (64-bit) installation into a lean, Docker-ready compute node.
+A streamlined setup script for transforming a fresh Raspberry Pi OS Lite or Ubuntu Server (64-bit) installation into a lean, Docker-ready compute node.
 
 ## Overview
 
-This project provides a bash script that optimizes a Raspberry Pi for compute-intensive tasks by:
+This project provides a bash script that optimises a Raspberry Pi for compute-intensive tasks by:
 
 1. Cleaning up unnecessary packages and services
 2. Configuring hardware settings for optimal performance
@@ -23,7 +23,8 @@ curl -sSL https://raw.githubusercontent.com/realies/rpi-compute-node/master/setu
 ## Features
 
 - System update and upgrade
-- Raspberry Pi configuration optimization
+- Dynamic Raspberry Pi configuration optimisation
+- Backup and restore of original configuration
 - Swap disable
 - Unnecessary service disabling and package removal
 - Module blacklisting for Bluetooth, Wi-Fi, and audio
@@ -36,6 +37,8 @@ curl -sSL https://raw.githubusercontent.com/realies/rpi-compute-node/master/setu
 
 ### Hardware Configuration
 
+- Creates a backup of the original config.txt file
+- Dynamically updates config.txt, preserving non-conflicting settings
 - Disables onboard audio, camera, display, Bluetooth, and Wi-Fi
 - Enables 64-bit mode and CPU boost
 - Configures GPU memory to minimum (16MB)
@@ -54,24 +57,31 @@ curl -sSL https://raw.githubusercontent.com/realies/rpi-compute-node/master/setu
 - Installs Docker from the official repository
 - Adds the primary user to the Docker group
 
+## Compatibility
+
+This script is now compatible with both Raspberry Pi OS Lite and Ubuntu Server (64-bit) installations. It dynamically adjusts the configuration based on the existing setup, making it more versatile across different Raspberry Pi operating systems.
+
 ## Requirements
 
 - Raspberry Pi 3 or newer
-- Fresh installation of Raspberry Pi OS Lite (64-bit)
+- Fresh installation of Raspberry Pi OS Lite or Ubuntu Server (64-bit)
 - Internet connection
 
 ## Caution
 
-This script makes significant changes to your Raspberry Pi configuration. It's designed for use cases where a minimal, compute-focused setup is desired. Some functionality (like Wi-Fi and Bluetooth) will be disabled. Always test in a safe environment before using in production.
+This script makes significant changes to your Raspberry Pi configuration. It's designed for use cases where a minimal, compute-focused setup is desired. Some functionality (like Wi-Fi and Bluetooth) will be disabled. While the script creates a backup of the original config.txt file, always ensure you have a full backup of your system before running this script. Test in a safe environment before using in production.
 
 ## Idempotency
 
-The script has been designed to be idempotent, meaning it can be safely run multiple times without causing errors or making unnecessary changes. It includes checks to:
+The script has been designed to be idempotent, meaning it can be safely run multiple times without causing errors or unintended changes. Key idempotent features include:
 
-- Avoid duplicate entries in configuration files
-- Skip already completed steps
-- Prevent re-installation of already installed packages
-- Avoid re-adding users to groups they're already part of
+- Backing up the original config.txt file before making changes
+- Restoring the original configuration before applying changes on subsequent runs
+- Selectively updates config.txt, preserving original settings except for those explicitly managed by the script
+- Avoiding duplicate entries in configuration files
+- Skipping already completed steps
+- Preventing re-installation of already installed packages
+- Avoiding re-adding users to groups they're already part of
 
 This allows for safe re-runs of the script, whether for updates or in case of interrupted execution.
 
